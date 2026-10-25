@@ -1,0 +1,56 @@
+name: Build
+
+# Roda só em pull requests e quando o dono do repositório manda rodar (Actions › Build › Run workflow).
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão para publicar como Release (ex.: v1.0.0). Vazio = só compila.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Self-contained: quem baixa não precisa instalar o .NET.
+      - name: Publish
+        run: dotnet publish Island.csproj -c Release -r win-x64 --self-contained true -p:DebugType=none -o out/Island
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path out/Island -DestinationPath Island-win-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Island-win-x64
+          path: Island-win-x64.zip
+
+  # Só quando você roda manualmente e informa uma versão. PRs nunca publicam nada.
+  release:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Island-win-x64
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          files: Island-win-x64.zip
+          generate_release_notes: true

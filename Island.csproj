@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Island</AssemblyName>
+    <RootNamespace>Island</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\island.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>Island</Product>
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\island.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Único pacote externo: biblioteca oficial da Microsoft (usada só para ler eventos de brilho via WMI). -->
+    <PackageReference Include="Anthropic" Version="13.3.0" />
+    <PackageReference Include="FlaUI.UIA3" Version="4.0.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
+  </ItemGroup>
+
+</Project>
