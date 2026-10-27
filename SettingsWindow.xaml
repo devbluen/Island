@@ -209,6 +209,27 @@
                     </Border>
                     <Button Style="{StaticResource TextBtn}" Content="{DynamicResource L.set.runSetup}" HorizontalAlignment="Left" Margin="0,16,0,0"
                             FontSize="12" Padding="14,7" Click="RunSetup_Click"/>
+
+                    <TextBlock Style="{StaticResource Group}" Text="{DynamicResource L.upd.title}"/>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding CheckUpdates}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource L.upd.auto}"/>
+                                    <TextBlock Style="{StaticResource Sub}" Text="{DynamicResource L.upd.autoHint}"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <TextBlock x:Name="UpdateStatus" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource Dim}"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button x:Name="CheckUpdateBtn" Style="{StaticResource TextBtn}" Content="{DynamicResource L.upd.checkNow}"
+                                        FontSize="12" Padding="14,7" Click="CheckUpdate_Click"/>
+                                <Button x:Name="InstallUpdateBtn" Style="{StaticResource PrimaryBtn}" Margin="10,0,0,0" FontSize="12" Padding="14,7"
+                                        Visibility="Collapsed" Click="InstallUpdate_Click"/>
+                                <Button x:Name="UpdateNotesBtn" Style="{StaticResource TextBtn}" Content="{DynamicResource L.upd.notes}" Margin="10,0,0,0"
+                                        FontSize="12" Padding="14,7" Visibility="Collapsed" Click="UpdateNotes_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- ============ ASSISTENTE ============ -->

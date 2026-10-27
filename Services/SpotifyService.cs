@@ -334,6 +334,14 @@ public sealed class SpotifyService
         return Loc.T("sp.resumed");
     }
 
+    // Pausa pela conta (quando o app não aparece como mídia no Windows, ex.: tocando em outro aparelho).
+    public async Task<bool> PauseAsync(CancellationToken ct)
+    {
+        using var resp = await SendAsync(HttpMethod.Put, "/me/player/pause", null, ct);
+        await Task.Delay(500, ct);
+        return !(await StateAsync(ct)).Playing;
+    }
+
     static void OpenUri(string uri) => Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
 
     async Task<string?> EnsureDeviceAsync(CancellationToken ct)

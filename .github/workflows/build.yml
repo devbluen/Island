@@ -24,8 +24,17 @@ jobs:
           dotnet-version: '8.0.x'
 
       # Self-contained: quem baixa não precisa instalar o .NET.
+      # A versão digitada no "Run workflow" (ex.: v1.2.0) vai para dentro do programa: é com ela que a ilha
+      # descobre se existe versão mais nova. Sem versão (PRs), fica a do Island.csproj.
       - name: Publish
-        run: dotnet publish Island.csproj -c Release -r win-x64 --self-contained true -p:DebugType=none -o out/Island
+        shell: pwsh
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          $v = "$env:VERSION".Trim().TrimStart('v', 'V')
+          $extra = @()
+          if ($v) { $extra += "-p:Version=$v" }
+          dotnet publish Island.csproj -c Release -r win-x64 --self-contained true -p:DebugType=none -o out/Island @extra
 
       - name: Zip
         shell: pwsh

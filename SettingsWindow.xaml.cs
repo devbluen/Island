@@ -50,8 +50,11 @@ public partial class SettingsWindow : Window
         UpdateWakeInfo();
         _main.WakeInfo += UpdateWakeInfo;
         _main.MicChanged += BuildMicList;
+        _main.UpdateChanged += UpdateUpdateUi;
+        UpdateUpdateUi();
         Closed += (_, _) =>
         {
+            _main.UpdateChanged -= UpdateUpdateUi;
             _main.SaveData(); // texto "Sobre você" e a memória editada à mão
             _main.WakeInfo -= UpdateWakeInfo;
             _main.MicChanged -= BuildMicList;
@@ -560,6 +563,60 @@ public partial class SettingsWindow : Window
         Directory.CreateDirectory(Log.Folder);
         if (File.Exists(Log.FilePath)) Process.Start(new ProcessStartInfo(Log.FilePath) { UseShellExecute = true });
         else Process.Start("explorer.exe", Log.Folder);
+    }
+
+    // ---------------- Atualizações ----------------
+
+    System.Threading.CancellationTokenSource? _updateDownload;
+
+    void UpdateUpdateUi()
+    {
+        var u = _main.AvailableUpdate;
+        UpdateStatus.Text = Loc.F("upd.current", Updater.Current.ToString(3)) + (u != null ? "  ·  " + Loc.F("upd.newFound", u.Tag) : "");
+        InstallUpdateBtn.Visibility = UpdateNotesBtn.Visibility = u != null ? Visibility.Visible : Visibility.Collapsed;
+        if (u != null) InstallUpdateBtn.Content = Loc.F("upd.installNow", u.Tag);
+    }
+
+    async void CheckUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdateBtn.IsEnabled = false;
+        UpdateStatus.Text = Loc.T("upd.checking");
+        try
+        {
+            var found = await _main.CheckForUpdatesAsync(manual: true);
+            UpdateUpdateUi();
+            if (found == null) UpdateStatus.Text = Loc.F("upd.none", Updater.Current.ToString(3));
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus.Text = Loc.F("upd.error", ex.Message);
+        }
+        finally
+        {
+            CheckUpdateBtn.IsEnabled = true;
+        }
+    }
+
+    async void InstallUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_main.AvailableUpdate is not { } release) return;
+        InstallUpdateBtn.IsEnabled = CheckUpdateBtn.IsEnabled = false;
+        _updateDownload = new System.Threading.CancellationTokenSource();
+        try
+        {
+            await _main.InstallUpdateAsync(release, p => Dispatcher.BeginInvoke(() =>
+                UpdateStatus.Text = Loc.F("upd.downloading", release.Tag) + $" {p:P0}"), _updateDownload.Token);
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus.Text = Loc.F("upd.error", ex.Message);
+            InstallUpdateBtn.IsEnabled = CheckUpdateBtn.IsEnabled = true;
+        }
+    }
+
+    void UpdateNotes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_main.AvailableUpdate is { } u) Process.Start(new ProcessStartInfo(u.Page) { UseShellExecute = true });
     }
 
     void RunSetup_Click(object sender, RoutedEventArgs e)

@@ -104,7 +104,7 @@ public partial class App : Application
         };
     }
 
-    void Quit()
+    public void Quit()
     {
         if (_win != null)
         {

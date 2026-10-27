@@ -32,6 +32,7 @@ public interface IAssistantHost
     void StopAlarm();
     void SnoozeAlarm(int minutes = 5);
     void SaveData();
+    Task<string> CheckUpdateAsync(bool install, CancellationToken ct);
 }
 
 public sealed record ToolOutput(string Text, bool IsError = false, byte[]? Jpeg = null);
@@ -128,8 +129,12 @@ public sealed class AgentTools
             },
             "window", "action");
         Add("media_control",
-            "Controla a música/vídeo que está tocando.",
-            new { action = new { type = "string", @enum = new[] { "play_pause", "next", "previous" } } },
+            "Controla música/vídeo: play (tocar, continuar, despausar), pause (pausar), next, previous. Use play ou pause conforme o pedido; play_pause (alternar) só se o usuário não disse qual. app opcional: \"spotify\", \"youtube\"/\"navegador\"…; sem app = a mídia atual. A resposta diz o estado REAL depois da ação.",
+            new
+            {
+                action = new { type = "string", @enum = new[] { "play", "pause", "next", "previous", "play_pause" } },
+                app = Prop("string", "App da mídia (opcional), ex.: \"spotify\""),
+            },
             "action");
         Add("play_spotify",
             "Toca no Spotify do usuário uma música, artista, álbum ou playlist (inclusive as playlists dele, pelo nome). Para as músicas curtidas/favoritas/salvas do usuário use kind=\"liked\" (query vazia). A busca do Spotify tolera erros de pronúncia; passe o nome como o usuário falou (pode incluir o artista).",
@@ -193,6 +198,9 @@ public sealed class AgentTools
                 message = Prop("string", "Texto exato da mensagem"),
             },
             "contact", "message");
+        Add("check_update",
+            "Procura uma versão nova da Island no GitHub oficial. install=true baixa, confere a assinatura e instala (a ilha reinicia sozinha).",
+            new { install = Prop("boolean", "true para instalar se houver versão nova") });
         Add("remember",
             "Guarda na memória (só no PC do usuário) um fato duradouro que ele contou e que vale lembrar depois: sites, contas, nomes e apelidos de pessoas, preferências, apps, projetos, rotinas. Escreva curto, de preferência no formato \"meu X é Y\" (ex.: \"meu site de anti cheat é xxx.com\").",
             new { fact = Prop("string", "O fato, ex.: \"meu editor preferido é o Cursor\"") },
@@ -321,7 +329,7 @@ public sealed class AgentTools
                 "launch_app" => await LaunchAppAsync(Str(input, "name")),
                 "run_command" => await RunCommandAsync(Str(input, "command"), Str(input, "working_directory"), Bool(input, "visible") == true, ct),
                 "window_action" => await WindowActionAsync(Str(input, "window"), Str(input, "action")),
-                "media_control" => MediaControl(Str(input, "action")),
+                "media_control" => await MediaControlAsync(Str(input, "action"), Str(input, "app"), ct),
                 "play_spotify" => await PlaySpotifyAsync(Str(input, "query"), Str(input, "kind"), ct),
                 "set_volume" => SetVolume(Int(input, "level"), Bool(input, "mute")),
                 "start_focus_timer" => StartTimer(Int(input, "minutes")),
@@ -332,6 +340,7 @@ public sealed class AgentTools
                 "quick_open" => await QuickOpenAsync(Str(input, "app"), Str(input, "query"), ct),
                 "browser_tab" => await BrowserTabAsync(Str(input, "action"), Str(input, "query"), Int(input, "index"), ct, Str(input, "keep")),
                 "send_whatsapp" => await SendWhatsAppAsync(Str(input, "contact"), Str(input, "message"), ct),
+                "check_update" => new(await _host.CheckUpdateAsync(Bool(input, "install") == true, ct)),
                 "remember" => Remember(Str(input, "fact")),
                 "forget" => Forget(Str(input, "query")),
                 "app_action" => await AppActionAsync(Str(input, "app"), Str(input, "action"), ct),
@@ -850,17 +859,33 @@ public sealed class AgentTools
         return new($"Feito ({action}) em \"{w.Title}\".");
     }
 
-    ToolOutput MediaControl(string action)
+    // Tocar e pausar têm direção (nunca "alternar" às cegas) e a resposta vem do estado conferido depois.
+    public async Task<ToolOutput> MediaControlAsync(string action, string app, CancellationToken ct)
     {
-        if (!_host.Media.HasMedia) return new("Nenhuma mídia aberta no momento.", true);
-        switch (action)
+        action = action switch { "play_pause" or "toggle" => "toggle", "play" or "pause" or "next" or "previous" => action, _ => "" };
+        if (action.Length == 0) return new("Ação inválida.", true);
+        app = (app ?? "").Trim().ToLowerInvariant();
+        if (app is "musica" or "música" or "som" or "video" or "vídeo" or "player" or "music" or "song" or "cancion") app = "";
+
+        var result = await _host.Media.ControlAsync(action, app.Length > 0 ? app : null);
+        if (result == null)
         {
-            case "play_pause": _host.Media.PlayPause(); break;
-            case "next": _host.Media.Next(); break;
-            case "previous": _host.Media.Previous(); break;
-            default: return new("Ação inválida.", true);
+            // O Spotify não aparece como mídia do Windows (fechado, ou tocando em outro aparelho): usa a conta.
+            bool spotify = app == "spotify" || (app.Length == 0 && action == "play");
+            if (spotify && _host.Spotify.IsConnected)
+            {
+                if (action == "pause") return await _host.Spotify.PauseAsync(ct) ? new(Loc.F("media.paused", "Spotify")) : new(Loc.F("media.failPause", "Spotify"), true);
+                if (action is "play" or "toggle") return new(await _host.Spotify.ResumeAsync(ct));
+            }
+            return new(app.Length > 0 ? Loc.F("media.noApp", char.ToUpper(app[0]) + app[1..]) : Loc.T("r.nothingPlaying"), true);
         }
-        return new("Ok.");
+
+        var (name, playing) = result.Value;
+        _host.Step(playing ? "\uE768" : "\uE769", $"{name}: {(playing ? "▶" : "⏸")}");
+        if (action == "play" && !playing) return new(Loc.F("media.failPlay", name), true);
+        if (action == "pause" && playing) return new(Loc.F("media.failPause", name), true);
+        if (action is "next" or "previous") return new(Loc.F("media.skipped", name));
+        return new(playing ? Loc.F("media.playing", name) : Loc.F("media.paused", name));
     }
 
     async Task<ToolOutput> PlaySpotifyAsync(string query, string kind, CancellationToken ct)

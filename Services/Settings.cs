@@ -81,6 +81,10 @@ public sealed class AppSettings
     public string SpotifyClientId { get; set; } = "";
     public string SpotifyRefreshProtected { get; set; } = "";
 
+    // Atualizações (Releases do GitHub oficial)
+    public bool CheckUpdates { get; set; } = true;
+    public string SkippedVersion { get; set; } = "";   // "lembrar depois" desta versão: não avisa de novo
+
     // Guarda as últimas gravações de voz (só no PC) para ajudar a ajustar o reconhecimento.
     public bool SaveVoiceRecordings { get; set; }
 

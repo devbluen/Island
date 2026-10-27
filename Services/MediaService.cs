@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -225,6 +226,37 @@ public sealed class MediaService
             "spotify" => "Spotify",
             _ => s.Length > 0 ? char.ToUpper(s[0]) + s[1..] : s,
         };
+    }
+
+    // play | pause | toggle | next | previous, no app pedido ("spotify", "chrome"…) ou na mídia atual.
+    // Devolve o app e se ficou tocando (conferido depois da ação); null = não há essa mídia aberta.
+    public async Task<(string App, bool Playing)?> ControlAsync(string action, string? app = null)
+    {
+        var session = _session;
+        if (!string.IsNullOrWhiteSpace(app))
+        {
+            var a = app.Trim().ToLowerInvariant();
+            if (a is "navegador" or "browser" or "youtube") a = "chrome|msedge|firefox|opera|brave";
+            session = _manager?.GetSessions().FirstOrDefault(s =>
+                a.Split('|').Any(x => s.SourceAppUserModelId.Contains(x, StringComparison.OrdinalIgnoreCase)));
+        }
+        if (session == null) return null;
+        try
+        {
+            switch (action)
+            {
+                case "play": await session.TryPlayAsync(); break;
+                case "pause": await session.TryPauseAsync(); break;
+                case "next": await session.TrySkipNextAsync(); break;
+                case "previous": await session.TrySkipPreviousAsync(); break;
+                default: await session.TryTogglePlayPauseAsync(); break;
+            }
+        }
+        catch { }
+        await Task.Delay(500);
+        bool playing = false;
+        try { playing = session.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing; } catch { }
+        return (FriendlyAppName(session.SourceAppUserModelId), playing);
     }
 
     public async void PlayPause()

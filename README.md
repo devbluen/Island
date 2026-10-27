@@ -90,6 +90,8 @@ dotnet run                 # run
 
 GitHub Actions builds every pull request. To publish a release, open **Actions › Build › Run workflow** and type a version such as `v1.2.0` — it builds and attaches `Island-win-x64.zip` to that release.
 
+Installed copies check these Releases at startup and every 12 hours (Settings › Behavior › Updates). Updating downloads the zip, verifies its SHA-256 against the one GitHub publishes, and restarts Island — settings, models and memory live in `%AppData%\Island` and are kept.
+
 ### Adding a language
 
 All texts are in [`Services/Strings.cs`](Services/Strings.cs) (one column per language) and registered in [`Services/Loc.cs`](Services/Loc.cs). Built-in voice commands per language are in [`Assistant/CommandRouter.cs`](Assistant/CommandRouter.cs) (`Grammar`).

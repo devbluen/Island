@@ -90,6 +90,8 @@ dotnet run                 # roda
 
 O GitHub Actions compila cada pull request. Para publicar uma versão, abra **Actions › Build › Run workflow** e digite uma versão como `v1.2.0` — ele compila e anexa `Island-win-x64.zip` ao release.
 
+As cópias instaladas consultam esses Releases ao abrir e a cada 12 horas (Configurações › Comportamento › Atualizações). Atualizar baixa o zip, confere o SHA-256 com o que o GitHub publica e reinicia a Island — configurações, modelos e memória ficam em `%AppData%\Island` e são mantidos.
+
 ## Licença
 
 [MIT](LICENSE)

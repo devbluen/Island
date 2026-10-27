@@ -218,6 +218,12 @@ OpenApp: @"^(?:abre|abrir|inicia|ejecuta)(?: el| la)? ([a-z0-9 .+#-]{2,30})$",
             }
         }
 
+        // ---- Atualizações: "procura atualizações", "atualiza a ilha", "check for updates" ("atualiza" sozinho é recarregar a página) ----
+        if (Regex.IsMatch(n, @"^(?:atualiza|atualizar|atualize|update|actualiza|actualizar|actualizate)(?: (?:pra|para|to) (?:a )?(?:versao|version) nova)? (?:a ilha|o island|a island|o jarvis|voce|vc|island|yourself|el island|la isla)(?: (?:pra|para|to) (?:a )?(?:versao|version) nova)?(?: (?:agora|now|ahora))?$"))
+            return await _host.CheckUpdateAsync(install: true, ct);
+        if (Regex.IsMatch(n, @"^(?:procura|procurar|verifica|verificar|ve se tem|tem|check for|look for|any|busca|buscar|hay)(?: (?:se tem|se ha|por))? (?:atualizacao|atualizacoes|versao nova|nova versao|updates?|new version|actualizacion|actualizaciones|version nueva|nueva version)(?: (?:da ilha|do island|da island|do jarvis|for island|disponivel|disponiveis|available))?$"))
+            return await _host.CheckUpdateAsync(install: false, ct);
+
         // ---- Memória: "lembre-se que meu site de anti cheat é xxx.com", "o que você sabe sobre mim?" ----
         if (Is(n, MemListRx)) return MemoryListReply();
         if ((m = Regex.Match(n, MemForgetRx)).Success)
@@ -304,7 +310,14 @@ OpenApp: @"^(?:abre|abrir|inicia|ejecuta)(?: el| la)? ([a-z0-9 .+#-]{2,30})$",
         }
 
         // ---- Música ----
-        if (Is(n, g.PlayPause)) return await Tool("media_control", ("action", "play_pause"), ct) ?? Loc.T("r.nothingPlaying");
+        // Com direção: "despausa o Spotify", "continua a música", "pausa o YouTube", "dá play"…
+        if ((m = Regex.Match(n, MediaResumeRx)).Success || (m = Regex.Match(n, MediaPauseRx)).Success)
+        {
+            var app = m.Groups["app2"].Success ? m.Groups["app2"].Value : m.Groups["app"].Success ? m.Groups["app"].Value : ""; // "a música DO SPOTIFY": o app nomeado vale
+            var mediaAction = Regex.IsMatch(n, MediaResumeRx) ? "play" : "pause";
+            return (await _tools.MediaControlAsync(mediaAction, app, ct)).Text;
+        }
+        if (Is(n, g.PlayPause)) return (await _tools.MediaControlAsync("play_pause", "", ct)).Text;
         if (Is(n, g.Next)) return await Tool("media_control", ("action", "next"), ct) ?? Loc.T("r.nothingPlaying");
         if (Is(n, g.Previous)) return await Tool("media_control", ("action", "previous"), ct) ?? Loc.T("r.nothingPlaying");
         if (Is(n, g.WhatsPlaying))
@@ -626,6 +639,12 @@ OpenApp: @"^(?:abre|abrir|inicia|ejecuta)(?: el| la)? ([a-z0-9 .+#-]{2,30})$",
         var start = AppCatalog.Norm(n);
         return a.Kind != "url" && a.Keywords.Any(k => start.StartsWith(k)) ? a : null;
     }
+
+    // ---------------- Mídia ----------------
+
+    const string MediaApp = @"(?:(?: (?:o|a|the|el|la))? (?<app>spotify|youtube|deezer|navegador|chrome|musica|som|video|player|music|song|cancion|reproductor))?(?: (?:do|no|da|on|in|en|del) (?<app2>spotify|youtube|deezer|navegador|chrome))?(?: (?:pra mim|para mim|por favor|please|por fa))?$";
+    const string MediaResumeRx = @"^(?:despausa|despausar|despause|despausa ai|tira (?:do |o )?pause|continua|continuar|continue|volta a tocar|voltar a tocar|retoma|retomar|da (?:um )?play|dar play|da o play|aperta o play|play|toca de novo|resume|unpause|keep playing|reanuda|reanudar|sigue|quita la pausa)" + MediaApp;
+    const string MediaPauseRx = @"^(?:pausa|pausar|pause|pausa ai|pare|para|parar|da (?:um )?pause|dar pause|da o pause|aperta o pause|stop|deten|detener)" + MediaApp;
 
     // ---------------- Memória ----------------
 

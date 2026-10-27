@@ -296,6 +296,7 @@ public partial class MainWindow : Window, IAssistantHost
         UpdateTimerUi();
         OnMediaChanged();
         _tick.Start();
+        if (!Demo.Active) StartUpdateChecks();
         if (Demo.Active) return; // screenshots: sem microfone, mídia, atalhos nem assistente de configuração
 
         try { _audio.Start(); } catch { }
@@ -1387,6 +1388,72 @@ if (UiLang != Loc.Lang)
     }
 
     bool _conversation;
+
+    // ---------------- Atualizações ----------------
+
+    public Updater.Release? AvailableUpdate { get; private set; }
+    public event Action? UpdateChanged;
+    DispatcherTimer? _updateTimer;
+
+    void StartUpdateChecks()
+    {
+        // 20 s depois de abrir (para não pesar a inicialização) e depois a cada 12 h.
+        _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+        _updateTimer.Tick += async (_, _) =>
+        {
+            _updateTimer.Interval = TimeSpan.FromHours(12);
+            if (S.CheckUpdates) await CheckForUpdatesAsync(manual: false);
+        };
+        _updateTimer.Start();
+    }
+
+    // Devolve o release novo (ou null). No automático, só avisa uma vez por versão.
+    public async Task<Updater.Release?> CheckForUpdatesAsync(bool manual)
+    {
+        Updater.Release? found = null;
+        try { found = await Updater.CheckAsync(CancellationToken.None); }
+        catch (Exception e) { if (manual) throw; Log.Error("Procurar atualização", e); }
+        AvailableUpdate = found;
+        UpdateChanged?.Invoke();
+        if (found != null && !manual && S.SkippedVersion != found.Tag)
+        {
+            S.SkippedVersion = found.Tag; // avisa uma vez; as configurações continuam mostrando o botão
+            SaveData();
+            ShowToast("\uE896", Loc.F("upd.toast", found.Tag), Loc.T("upd.toastSub"), seconds: 9);
+        }
+        return found;
+    }
+
+    // Baixa, confere e instala; a ilha fecha e a versão nova abre sozinha.
+    public async Task InstallUpdateAsync(Updater.Release release, Action<double> progress, CancellationToken ct)
+    {
+        await Updater.PrepareAsync(release, progress, ct);
+        Updater.LaunchPending();
+        ((App)Application.Current).Quit();
+    }
+
+    public async Task<string> CheckUpdateAsync(bool install, CancellationToken ct)
+    {
+        if (!Dispatcher.CheckAccess()) return await Dispatcher.Invoke(() => CheckUpdateAsync(install, ct));
+        Updater.Release? found;
+        try { found = await CheckForUpdatesAsync(manual: true); }
+        catch (Exception e) { return Loc.F("upd.error", e.Message); }
+        if (found == null) return Loc.F("upd.none", Updater.Current.ToString(3));
+        if (!install) return Loc.F("upd.available", found.Tag, Updater.Current.ToString(3));
+        if (S.ConfirmCommands && !await ConfirmAsync(Loc.F("upd.toast", found.Tag), Loc.T("upd.confirm")))
+            return Loc.T("chat.canceled");
+        ShowToast("\uE896", Loc.F("upd.downloading", found.Tag), null, 0, sticky: true);
+        try
+        {
+            await InstallUpdateAsync(found, p => Dispatcher.BeginInvoke(() => ShowToast("\uE896", Loc.F("upd.downloading", found.Tag), null, p, sticky: true)), ct);
+            return Loc.T("upd.restarting");
+        }
+        catch (Exception e)
+        {
+            EndSticky();
+            return Loc.F("upd.error", e.Message);
+        }
+    }
 
     // "para", "cancela", "esquece", "stop", "never mind", "olvídalo"…
     static bool IsCancelPhrase(string text) => System.Text.RegularExpressions.Regex.IsMatch(
